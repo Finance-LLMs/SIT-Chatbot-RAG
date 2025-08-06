@@ -76,9 +76,29 @@ start_faiss = time.time()
 # print(f"✅ FAISS loaded in {time.time() - start_faiss:.2f} seconds")
 
 print("Connecting to LanceDB...")
-db = lancedb.connect("data/vector-index-lancedb")
-lance_table = db.open_table("faiss_index")
-print(f"LanceDB connected in {time.time() - start_faiss:.2f} seconds")
+print(f"Current working directory: {os.getcwd()}")
+print(f"Looking for database at: {os.path.abspath('data/vector-index-lancedb')}")
+
+try:
+    db = lancedb.connect("../data/vector-index-lancedb")
+    print("✅ Database connection successful")
+    
+    # List available tables
+    tables = db.table_names()
+    print(f"Available tables: {tables}")
+    
+    if "faiss_index" in tables:
+        lance_table = db.open_table("faiss_index")
+        print(f"✅ LanceDB faiss_index table opened successfully in {time.time() - start_faiss:.2f} seconds")
+        print(f"Table schema: {lance_table.schema}")
+    else:
+        print(f"❌ 'faiss_index' table not found. Available tables: {tables}")
+        exit(1)
+        
+except Exception as e:
+    print(f"❌ Error connecting to LanceDB: {e}")
+    print(f"Error type: {type(e)}")
+    exit(1)
 
 # SIT-related keyword detection (optional feature, currently unused)
 SIT_KEYWORDS = ["SIT", "Singapore Institute of Technology", "AI Centre", "undergraduate programs",
