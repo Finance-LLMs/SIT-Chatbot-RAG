@@ -5,6 +5,11 @@ const path = require("path");
 
 dotenv.config();
 
+console.log('Environment check:');
+console.log('ELEVENLABS_API_KEY:', process.env.ELEVENLABS_API_KEY ? 'Set' : 'Not set');
+console.log('ELEVENLABS_AGENT_ID:', process.env.ELEVENLABS_AGENT_ID ? 'Set' : 'Not set');
+console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
