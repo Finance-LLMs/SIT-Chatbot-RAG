@@ -5,12 +5,12 @@ const path = require("path");
 const FormData = require("form-data");
 const axios = require("axios");
 
-// Load environment variables from parent directory
-dotenv.config({ path: path.join(__dirname, '../.env') });
+// Load environment variables from current backend directory
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 console.log('Environment check:');
 console.log('ELEVENLABS_API_KEY:', process.env.ELEVENLABS_API_KEY ? 'Set' : 'Not set');
-console.log('ELEVENLABS_AGENT_ID:', process.env.ELEVENLABS_AGENT_ID ? 'Set' : 'Not set');
+// console.log('ELEVENLABS_AGENT_ID:', process.env.ELEVENLABS_AGENT_ID ? 'Set' : 'Not set');
 console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set');
 
 const app = express();
@@ -170,40 +170,40 @@ app.post("/api/text-to-speech", async (req, res) => {
   }
 });
 
-app.get("/api/signed-url", async (req, res) => {
-  try {
-    let agentId = process.env.ELEVENLABS_AGENT_ID; // Changed from AGENT_ID
-    console.log("Requesting signed URL for agentId:", agentId);
-    const response = await fetch(
-      `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${agentId}`,
-      {
-        method: "GET",
-        headers: {
-          "xi-api-key": process.env.ELEVENLABS_API_KEY, // Changed from XI_API_KEY
-        },
-      }
-    );
-    console.log("Received response status:", response.status);
-    if (!response.ok) {
-      throw new Error("Failed to get signed URL");
-    }
-    const data = await response.json();
-    console.log("Signed URL data:", data);
-    res.json({ signedUrl: data.signed_url });
-  } catch (error) {
-    console.error("Error in /api/signed-url:", error);
-    res.status(500).json({ error: "Failed to get signed URL" });
-  }
-});
+// app.get("/api/signed-url", async (req, res) => {
+//   try {
+//     let agentId = process.env.ELEVENLABS_AGENT_ID; // Changed from AGENT_ID
+//     console.log("Requesting signed URL for agentId:", agentId);
+//     const response = await fetch(
+//       `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${agentId}`,
+//       {
+//         method: "GET",
+//         headers: {
+//           "xi-api-key": process.env.ELEVENLABS_API_KEY, // Changed from XI_API_KEY
+//         },
+//       }
+//     );
+//     console.log("Received response status:", response.status);
+//     if (!response.ok) {
+//       throw new Error("Failed to get signed URL");
+//     }
+//     const data = await response.json();
+//     console.log("Signed URL data:", data);
+//     res.json({ signedUrl: data.signed_url });
+//   } catch (error) {
+//     console.error("Error in /api/signed-url:", error);
+//     res.status(500).json({ error: "Failed to get signed URL" });
+//   }
+// });
 
-//API route for getting Agent ID, used for public agents
-app.get("/api/getAgentId", (req, res) => {
-  const agentId = process.env.ELEVENLABS_AGENT_ID; // Changed from AGENT_ID
-  console.log("Returning agentId:", agentId);
-  res.json({
-    agentId: `${agentId}`,
-  });
-});
+// //API route for getting Agent ID, used for public agents
+// app.get("/api/getAgentId", (req, res) => {
+//   const agentId = process.env.ELEVENLABS_AGENT_ID; // Changed from AGENT_ID
+//   console.log("Returning agentId:", agentId);
+//   res.json({
+//     agentId: `${agentId}`,
+//   });
+// });
 
 // Proxy route for chat completions
 app.post('/api/chat', async (req, res) => {
