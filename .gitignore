@@ -3,3 +3,5 @@ data/
 __pycache__/
 */.env
 venv/
+SIT-chatbot-main/.env
+SITCHATBOTLLM/.env
