@@ -44,13 +44,41 @@ app.post("/api/speech-to-text", upload.single("audio"), async (req, res) => {
     // Debug: Check API key
     console.log("🔑 API Key check:", process.env.ELEVENLABS_API_KEY ? `Loaded (${process.env.ELEVENLABS_API_KEY.substring(0, 8)}...)` : 'NOT FOUND');
     
-    // Create FormData using form-data library (much better for Node.js)
+    // Optimize audio format using ffmpeg (16kHz, mono, PCM)
+    const optimizedAudioPath = req.file.path + '_optimized.wav';
+    console.log("🔧 Optimizing audio format with ffmpeg...");
+    
+    const ffmpegCommand = `ffmpeg -i "${req.file.path}" -ar 16000 -ac 1 -c:a pcm_s16le "${optimizedAudioPath}" -y`;
+    console.log("📝 FFmpeg command:", ffmpegCommand);
+    
+    try {
+      await new Promise((resolve, reject) => {
+        exec(ffmpegCommand, (error, stdout, stderr) => {
+          if (error) {
+            console.error("❌ FFmpeg error:", error);
+            reject(error);
+          } else {
+            console.log("✅ Audio optimized successfully");
+            console.log("📊 FFmpeg output:", stdout);
+            if (stderr) console.log("📊 FFmpeg stderr:", stderr);
+            resolve(stdout);
+          }
+        });
+      });
+    } catch (ffmpegError) {
+      console.error("❌ Audio optimization failed, using original file:", ffmpegError);
+      // Fall back to original file if ffmpeg fails
+      fs.copyFileSync(req.file.path, optimizedAudioPath);
+    }
+    
+    // Create FormData using form-data library with optimized audio
     const formData = new FormData();
     formData.append('model_id', 'scribe_v1');
-    formData.append('language', 'en');  // Make sure this is included
-    formData.append('file', fs.createReadStream(req.file.path), {
-      filename: req.file.originalname || 'audio.wav',
-      contentType: 'audio/wav'  // Explicitly set content type
+    formData.append('language', 'en');
+    formData.append('file', fs.createReadStream(optimizedAudioPath), {
+      filename: 'audio_optimized.wav',
+      contentType: 'audio/wav',
+      knownLength: fs.statSync(optimizedAudioPath).size
     });
 
     console.log("🔄 Sending request to ElevenLabs STT API using axios...");
@@ -58,21 +86,25 @@ app.post("/api/speech-to-text", upload.single("audio"), async (req, res) => {
     
     // Use axios which handles multipart form data properly
     const response = await axios.post('https://api.elevenlabs.io/v1/speech-to-text', formData, {
-      headers: {
-        'xi-api-key': process.env.ELEVENLABS_API_KEY,
-        'Accept': 'application/json',  // Add this
-        ...formData.getHeaders()
-      },
+    headers: {
+      'xi-api-key': process.env.ELEVENLABS_API_KEY,
+      'Accept': 'application/json',
+      'Content-Type': 'multipart/form-data',
+      ...formData.getHeaders()
+    },
       timeout: 30000 // 30 second timeout
     });
 
     console.log("📡 ElevenLabs STT response status:", response.status);
     
-    // Clean up uploaded file
+    // Clean up uploaded files
     try {
-      fs.unlinkSync(req.file.path);
+      fs.unlinkSync(req.file.path); // Original file
+      if (fs.existsSync(optimizedAudioPath)) {
+        fs.unlinkSync(optimizedAudioPath); // Optimized file
+      }
     } catch (err) {
-      console.error("Error deleting temporary file:", err);
+      console.error("Error deleting temporary files:", err);
     }
 
     console.log("✅ Speech-to-text result:", response.data);
@@ -89,12 +121,16 @@ app.post("/api/speech-to-text", upload.single("audio"), async (req, res) => {
   } catch (error) {
     console.error("❌ Error in speech-to-text:", error);
     
-    // Clean up uploaded file in case of error
+    // Clean up uploaded files in case of error
     if (req.file && req.file.path) {
       try {
-        fs.unlinkSync(req.file.path);
+        fs.unlinkSync(req.file.path); // Original file
+        const optimizedAudioPath = req.file.path + '_optimized.wav';
+        if (fs.existsSync(optimizedAudioPath)) {
+          fs.unlinkSync(optimizedAudioPath); // Optimized file
+        }
       } catch (cleanupErr) {
-        console.error("Error deleting temporary file during cleanup:", cleanupErr);
+        console.error("Error deleting temporary files during cleanup:", cleanupErr);
       }
     }
     
