@@ -465,7 +465,35 @@ async function sendTextMessage(text) {
   startMouthAnimation();
 
   try {
-    await sendProcessedText(text);
+    // Use RAG backend instead of ElevenLabs for text messages
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4',
+        messages: [
+          {
+            role: 'user',
+            content: text
+          }
+        ],
+        stream: false
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const botResponse = data.choices?.[0]?.message?.content || 'Sorry, I could not process your request.';
+    
+    addMessageToChat(botResponse, "bot");
+    stopMouthAnimation();
+    updatePrimaryButton("connected");
+    
   } catch (error) {
     console.error("[Frontend] Error sending text message:", error);
     showError("Failed to send your message.");
