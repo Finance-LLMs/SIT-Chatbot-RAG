@@ -82,14 +82,14 @@ app.post("/api/transcribe", upload.single("file"), async (req, res) => {
 
 app.get("/api/signed-url", async (req, res) => {
   try {
-    let agentId = process.env.AGENT_ID; // Default agent
+    let agentId = process.env.ELEVENLABS_AGENT_ID; // Changed from AGENT_ID
     console.log("Requesting signed URL for agentId:", agentId);
     const response = await fetch(
       `https://api.elevenlabs.io/v1/convai/conversation/get_signed_url?agent_id=${agentId}`,
       {
         method: "GET",
         headers: {
-          "xi-api-key": process.env.XI_API_KEY,
+          "xi-api-key": process.env.ELEVENLABS_API_KEY, // Changed from XI_API_KEY
         },
       }
     );
@@ -108,7 +108,7 @@ app.get("/api/signed-url", async (req, res) => {
 
 //API route for getting Agent ID, used for public agents
 app.get("/api/getAgentId", (req, res) => {
-  const agentId = process.env.AGENT_ID;
+  const agentId = process.env.ELEVENLABS_AGENT_ID; // Changed from AGENT_ID
   console.log("Returning agentId:", agentId);
   res.json({
     agentId: `${agentId}`,
