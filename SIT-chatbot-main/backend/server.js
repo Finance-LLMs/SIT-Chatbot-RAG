@@ -2,6 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
 const path = require("path");
+const FormData = require("form-data");
 
 dotenv.config();
 
@@ -28,56 +29,119 @@ const fs = require("fs");
 const { exec, spawn } = require("child_process");
 const upload = multer({ dest: "uploads/" });
 
-// Endpoint for speech-to-text transcription using ElevenLabs API
-app.post("/api/transcribe", upload.single("file"), async (req, res) => {
+// Endpoint for speech-to-text using ElevenLabs Speech-to-Text API
+app.post("/api/speech-to-text", upload.single("audio"), async (req, res) => {
   try {
-    console.log("Received file for transcription:", req.file);
+    console.log("🎤 Received audio file for speech-to-text:", req.file);
     if (!req.file) {
-      return res.status(400).json({ error: "No file uploaded" });
+      return res.status(400).json({ error: "No audio file uploaded" });
     }
 
-    const filePath = req.file.path;
-    const language = req.body.language || "en";
-
-    // Run the Python script for transcription
-    const pythonProcess = spawn("python", [
-      "stt_elevenlabs.py",
-      filePath,
-      language
-    ]);
-
-    let transcript = "";
-    let errorOutput = "";
-
-    pythonProcess.stdout.on("data", (data) => {
-      transcript += data.toString();
+    console.log("📊 File details - Size:", req.file.size, "bytes, Type:", req.file.mimetype);
+    
+    // Create FormData correctly according to ElevenLabs API docs
+    const formData = new FormData();
+    formData.append('model_id', 'scribe_v1'); // Required parameter
+    formData.append('file', fs.createReadStream(req.file.path), {
+      filename: req.file.originalname || 'audio.wav',
+      contentType: req.file.mimetype || 'audio/wav'
     });
 
-    pythonProcess.stderr.on("data", (data) => {
-      errorOutput += data.toString();
+    console.log("🔄 Sending request to ElevenLabs STT API with correct format...");
+    
+    const response = await fetch('https://api.elevenlabs.io/v1/speech-to-text', {
+      method: 'POST',
+      headers: {
+        'xi-api-key': process.env.ELEVENLABS_API_KEY,
+        ...formData.getHeaders()
+      },
+      body: formData
     });
 
-    pythonProcess.on("close", (code) => {
-      // Delete the temporary file
-      try {
-        fs.unlinkSync(filePath);
-      } catch (err) {
-        console.error("Error deleting temporary file:", err);
-      }
+    console.log("📡 ElevenLabs STT response status:", response.status);
+    
+    // Clean up uploaded file
+    try {
+      fs.unlinkSync(req.file.path);
+    } catch (err) {
+      console.error("Error deleting temporary file:", err);
+    }
 
-      if (code !== 0 || errorOutput) {
-        console.error("Error in Python transcription process:", errorOutput);
-        return res.status(500).json({ error: "Transcription failed", details: errorOutput });
-      }
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ ElevenLabs STT API error:", errorText);
+      throw new Error(`ElevenLabs STT API returned status: ${response.status} - ${errorText}`);
+    }
 
-      // Clean up the transcript (remove any extra newlines)
-      transcript = transcript.trim();
-      console.log("Transcription result:", transcript);
-      res.json({ text: transcript });
-    });
+    const result = await response.json();
+    console.log("✅ Speech-to-text result:", result);
+    
+    // ElevenLabs returns the transcription in the 'text' field
+    const transcribedText = result.text;
+    
+    if (!transcribedText) {
+      console.error("❌ No transcription found in response:", result);
+      throw new Error("No transcription text found in API response");
+    }
+    
+    res.json({ text: transcribedText });
   } catch (error) {
-    console.error("Error during transcription:", error);
-    res.status(500).json({ error: "Transcription failed", details: error.message });
+    console.error("❌ Error in speech-to-text:", error);
+    res.status(500).json({ error: "Speech-to-text failed", details: error.message });
+  }
+});
+
+// Endpoint for text-to-speech using ElevenLabs TTS API
+app.post("/api/text-to-speech", async (req, res) => {
+  try {
+    const { text, voice_id } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ error: "No text provided" });
+    }
+
+    console.log("🔊 Converting text to speech:", text.substring(0, 100) + "...");
+
+    const voiceId = voice_id || "21m00Tcm4TlvDq8ikWAM"; // Default voice ID
+    
+    const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'audio/mpeg',
+        'Content-Type': 'application/json',
+        'xi-api-key': process.env.ELEVENLABS_API_KEY,
+      },
+      body: JSON.stringify({
+        text: text,
+        model_id: "eleven_turbo_v2_5", // Updated to newer model for better performance
+        voice_settings: {
+          stability: 0.5,
+          similarity_boost: 0.5
+        }
+      })
+    });
+
+    console.log("📡 ElevenLabs TTS response status:", response.status);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("❌ ElevenLabs TTS API error:", errorText);
+      throw new Error(`ElevenLabs TTS API returned status: ${response.status} - ${errorText}`);
+    }
+
+    const audioBuffer = await response.buffer();
+    
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': audioBuffer.length
+    });
+    
+    console.log("✅ Text-to-speech audio generated");
+    res.send(audioBuffer);
+    
+  } catch (error) {
+    console.error("❌ Error in text-to-speech:", error);
+    res.status(500).json({ error: "Text-to-speech failed", details: error.message });
   }
 });
 

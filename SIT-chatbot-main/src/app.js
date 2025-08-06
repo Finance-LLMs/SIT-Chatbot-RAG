@@ -309,12 +309,6 @@ function get_context(text) {
 
 async function startSpeechToText() {
   try {
-    if (!conversation) {
-      throw new Error(
-        "Conversation not initialized. Please start the conversation first."
-      );
-    }
-
     isRecording = true;
     console.log("[Frontend] Starting STT recording");
 
@@ -343,11 +337,10 @@ async function startSpeechToText() {
       try {
         const audioBlob = new Blob(audioChunks, { type: "audio/wav" });
         const formData = new FormData();
-        formData.append("file", audioBlob, "recording.wav");
-        formData.append("language", "en");
+        formData.append("audio", audioBlob, "recording.wav");
 
-        console.log("[Frontend] Sending audio to backend for transcription");
-        const response = await fetch("/api/transcribe", {
+        console.log("[Frontend] Sending audio to backend for speech-to-text");
+        const response = await fetch("/api/speech-to-text", {
           method: "POST",
           body: formData,
         });
@@ -363,11 +356,9 @@ async function startSpeechToText() {
           console.log("[Frontend] Received transcription:", result.text);
           user_input = result.text;
 
-          if (isRecording) {
-            addMessageToChat(`💭 "${result.text}"`, "user");
-            updatePrimaryButton("connected");
-            showSecondaryButton("Send Message", handleSendToAgent);
-          }
+          // Automatically send the transcribed text through RAG system
+          addMessageToChat(`💭 "${result.text}"`, "user");
+          await sendVoiceMessage(result.text);
         }
       } catch (error) {
         console.error("[Frontend] Error getting transcription:", error);
@@ -457,6 +448,103 @@ async function sendProcessedText(text) {
   }
 }
 
+async function sendVoiceMessage(text) {
+  if (!text.trim()) return;
+
+  updatePrimaryButton("processing");
+  startMouthAnimation();
+
+  try {
+    // Send to RAG backend for response
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'gpt-4',
+        messages: [
+          {
+            role: 'user',
+            content: text
+          }
+        ],
+        stream: false
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const botResponse = data.choices?.[0]?.message?.content || 'Sorry, I could not process your request.';
+    
+    // Display the text response
+    addMessageToChat(botResponse, "bot");
+    
+    // Convert response to speech
+    await playTextToSpeech(botResponse);
+    
+    stopMouthAnimation();
+    updatePrimaryButton("connected");
+    
+  } catch (error) {
+    console.error("[Frontend] Error sending voice message:", error);
+    showError("Failed to process your voice message.");
+    stopMouthAnimation();
+    updatePrimaryButton("connected");
+  }
+}
+
+async function playTextToSpeech(text) {
+  try {
+    console.log("[Frontend] Converting text to speech:", text.substring(0, 50) + "...");
+    
+    const response = await fetch('/api/text-to-speech', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        text: text,
+        voice_id: "21m00Tcm4TlvDq8ikWAM" // Default ElevenLabs voice
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`TTS API returned status: ${response.status}`);
+    }
+
+    const audioBlob = await response.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+    
+    audio.onplay = () => {
+      console.log("[Frontend] Started playing TTS audio");
+      startMouthAnimation();
+    };
+    
+    audio.onended = () => {
+      console.log("[Frontend] Finished playing TTS audio");
+      stopMouthAnimation();
+      URL.revokeObjectURL(audioUrl);
+    };
+    
+    audio.onerror = (error) => {
+      console.error("[Frontend] Error playing TTS audio:", error);
+      stopMouthAnimation();
+      URL.revokeObjectURL(audioUrl);
+    };
+    
+    await audio.play();
+    
+  } catch (error) {
+    console.error("[Frontend] Error with text-to-speech:", error);
+    // Don't show error to user for TTS failures, just continue without audio
+  }
+}
+
 async function sendTextMessage(text) {
   if (!text.trim()) return;
 
@@ -513,172 +601,12 @@ async function startConversation() {
       return;
     }
 
-    const signedUrl = await getSignedUrl();
-
-    conversation = await Conversation.startSession({
-      signedUrl,
-      disableTts: false,
-      disableSpeechToText: true,
-      disableAudioProcessing: true,
-      disableAutostart: true,
-      voiceEnabled: false,
-      autostart: false,
-      microphoneEnabled: false,
-      inputMode: "text",
-      speechToTextEnabled: false,
-      onConnect: () => {
-        console.log("🔗 [CONNECTION] Connected to conversation");
-        updateStatus(true);
-        updatePrimaryButton("connected");
-
-        setTimeout(() => {
-          try {
-            if (
-              conversation &&
-              typeof conversation.endVoiceSession === "function"
-            ) {
-              conversation.endVoiceSession();
-            }
-            if (
-              conversation &&
-              typeof conversation.setMicrophoneState === "function"
-            ) {
-              conversation.setMicrophoneState(false);
-            }
-          } catch (e) {
-            console.log("Error stopping voice activity:", e);
-          }
-        }, 100);
-      },
-      onDisconnect: () => {
-        console.log("🔗 [CONNECTION] Disconnected from conversation");
-        updateStatus(false);
-        updatePrimaryButton("ready");
-        hideSecondaryButton();
-        stopMouthAnimation();
-      },
-      onError: (error) => {
-        console.error("🚨 [ERROR] Conversation error:", error);
-        updatePrimaryButton("ready");
-        hideSecondaryButton();
-        showError("An error occurred during the conversation.");
-      },
-      onMessage: (msg) => {
-        // Enhanced logging for all message types
-        console.log(
-          "📨 [MESSAGE RECEIVED] Raw message:",
-          JSON.stringify(msg, null, 2)
-        );
-        console.log("📨 [MESSAGE KEYS]:", Object.keys(msg));
-
-        let botResponse = null;
-        let messageType = "unknown";
-        let messageSource = msg.source || "unknown";
-
-        // Check for bot utterance
-        if (msg.type === "bot_utterance" && msg.text) {
-          botResponse = msg.text;
-          messageType = "bot_utterance";
-          console.log("🤖 [BOT_UTTERANCE]:", botResponse);
-        }
-        // Check for TTS response
-        else if (msg.type === "tts" && msg.text) {
-          botResponse = msg.text;
-          messageType = "tts";
-          console.log("🤖 [TTS]:", botResponse);
-        }
-        // Check for AI source message
-        else if (msg.source === "ai" && msg.message) {
-          botResponse = msg.message;
-          messageType = "ai_source";
-          console.log("🤖 [AI_SOURCE]:", botResponse);
-        }
-        // Check for response type message
-        else if (msg.type === "response" && msg.response) {
-          botResponse = msg.response;
-          messageType = "response";
-          console.log("🤖 [RESPONSE]:", botResponse);
-        }
-        // Check for completion type message
-        else if (msg.type === "completion" && msg.text) {
-          botResponse = msg.text;
-          messageType = "completion";
-          console.log("🤖 [COMPLETION]:", botResponse);
-        }
-        // Check for message content
-        else if (msg.content && typeof msg.content === "string") {
-          botResponse = msg.content;
-          messageType = "content";
-          console.log("🤖 [CONTENT]:", botResponse);
-        }
-        // Check for data field
-        else if (msg.data && typeof msg.data === "string") {
-          botResponse = msg.data;
-          messageType = "data";
-          console.log("🤖 [DATA]:", botResponse);
-        }
-        // Fallback for any text field (excluding user transcripts)
-        else if (
-          msg.text &&
-          msg.type !== "user_transcript" &&
-          msg.type !== "transcript"
-        ) {
-          botResponse = msg.text;
-          messageType = "fallback_text";
-          console.log("🤖 [FALLBACK_TEXT]:", botResponse);
-        }
-
-        // Handle user transcripts separately
-        if (msg.type === "user_transcript" || msg.type === "transcript") {
-          console.log(
-            "👤 [USER_TRANSCRIPT]:",
-            msg.text || msg.content || "No text found"
-          );
-          return;
-        }
-
-        // Handle bot responses
-        if (botResponse) {
-          // Comprehensive chatbot response logging
-          console.log("🤖 [CHATBOT_RESPONSE_DETECTED]:", {
-            timestamp: new Date().toISOString(),
-            messageType: messageType,
-            source: messageSource,
-            response: botResponse,
-            responseLength: botResponse.length,
-            wordCount: botResponse.split(" ").length,
-            originalMessage: msg,
-          });
-
-          // Additional separate logs for visibility
-          console.log("=".repeat(50));
-          console.log("🤖 CHATBOT SAID:", botResponse);
-          console.log("=".repeat(50));
-
-          addMessageToChat(botResponse, "bot");
-          stopMouthAnimation();
-          updatePrimaryButton("connected");
-        } else {
-          console.log("❓ [UNHANDLED_MESSAGE]:", {
-            type: msg.type,
-            source: msg.source,
-            keys: Object.keys(msg),
-            fullMessage: msg,
-          });
-        }
-      },
-      onModeChange: (mode) => {
-        console.log("🎵 [MODE_CHANGE]:", mode);
-        const isSpeaking = mode && mode.mode === "speaking";
-        if (isSpeaking) {
-          console.log("🗣️ [SPEAKING] Bot started speaking");
-          startMouthAnimation();
-        } else {
-          console.log("🤫 [NOT_SPEAKING] Bot stopped speaking");
-          stopMouthAnimation();
-        }
-      },
-    });
+    // No need to connect to ElevenLabs conversational agent anymore
+    // Just update UI to ready state for direct STT/TTS
+    console.log("🔗 [CONNECTION] Ready for direct STT/TTS");
+    updateStatus(true);
+    updatePrimaryButton("connected");
+    
   } catch (error) {
     console.error("🚨 [ERROR] Error starting conversation:", error);
     updatePrimaryButton("ready");
@@ -692,14 +620,10 @@ async function endConversation() {
       await stopSpeechToText();
     }
 
-    if (conversation) {
-      await conversation.endSession();
-      conversation = null;
-      sttStream = null;
-    }
-
     user_input = "";
     isRecording = false;
+    conversation = null;
+    sttStream = null;
 
     updatePrimaryButton("ready");
     hideSecondaryButton();
@@ -707,9 +631,7 @@ async function endConversation() {
     stopMouthAnimation();
   } catch (error) {
     console.error("Error ending conversation:", error);
-    showError(
-      "Failed to properly end conversation. You may need to refresh the page."
-    );
+    showError("Failed to properly end conversation.");
   }
 }
 
