@@ -14,6 +14,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 app.use("/static", express.static(path.join(__dirname, "../dist")));
+app.use(express.static(path.join(__dirname, "../dist")));
 
 // Add debugging logs for incoming requests and outgoing responses
 app.use((req, res, next) => {
@@ -113,6 +114,39 @@ app.get("/api/getAgentId", (req, res) => {
   res.json({
     agentId: `${agentId}`,
   });
+});
+
+// Proxy route for chat completions
+app.post('/api/chat', async (req, res) => {
+  console.log('🔍 [CHAT API] Received request to /api/chat');
+  console.log('🔍 [CHAT API] Request body:', JSON.stringify(req.body, null, 2));
+  
+  try {
+    console.log('🔍 [CHAT API] Forwarding to RAG backend at localhost:8000...');
+    
+    // Should forward to http://localhost:8000/v1/chat/completions
+    const response = await fetch('http://localhost:8000/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(req.body)
+    });
+    
+    console.log('🔍 [CHAT API] RAG backend response status:', response.status);
+    
+    if (!response.ok) {
+      throw new Error(`RAG backend returned status ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log('🔍 [CHAT API] RAG backend response:', JSON.stringify(data, null, 2));
+    
+    res.json(data);
+  } catch (error) {
+    console.error('❌ [CHAT API] Error:', error);
+    res.status(500).json({ error: 'Failed to get response from RAG backend', details: error.message });
+  }
 });
 
 // Serve index.html for all other routes
