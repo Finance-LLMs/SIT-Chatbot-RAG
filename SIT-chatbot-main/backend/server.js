@@ -47,18 +47,21 @@ app.post("/api/speech-to-text", upload.single("audio"), async (req, res) => {
     // Create FormData using form-data library (much better for Node.js)
     const formData = new FormData();
     formData.append('model_id', 'scribe_v1');
+    formData.append('language', 'en');  // Make sure this is included
     formData.append('file', fs.createReadStream(req.file.path), {
       filename: req.file.originalname || 'audio.wav',
-      contentType: req.file.mimetype || 'audio/wav'
+      contentType: 'audio/wav'  // Explicitly set content type
     });
 
     console.log("🔄 Sending request to ElevenLabs STT API using axios...");
+    console.log("📝 Request parameters: model_id=scribe_v1, language=en");
     
     // Use axios which handles multipart form data properly
     const response = await axios.post('https://api.elevenlabs.io/v1/speech-to-text', formData, {
       headers: {
         'xi-api-key': process.env.ELEVENLABS_API_KEY,
-        ...formData.getHeaders() // This adds the correct content-type boundary
+        'Accept': 'application/json',  // Add this
+        ...formData.getHeaders()
       },
       timeout: 30000 // 30 second timeout
     });
