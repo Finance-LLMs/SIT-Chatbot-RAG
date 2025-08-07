@@ -1,5 +1,3 @@
-Here's a clean and simple README.md for your SIT Chatbot Agent:
-
 # SIT Chatbot Agent
 
 A simple chatbot server with public HTTPS access via ngrok.
