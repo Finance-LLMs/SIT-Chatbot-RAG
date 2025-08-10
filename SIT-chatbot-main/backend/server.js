@@ -8,10 +8,13 @@ const axios = require("axios");
 // Load environment variables from current backend directory
 dotenv.config({ path: path.join(__dirname, '.env') });
 
+const RAG_BASE_URL = process.env.RAG_BASE_URL || 'http://127.0.0.1:8000';
+
 console.log('Environment check:');
 console.log('ELEVENLABS_API_KEY:', process.env.ELEVENLABS_API_KEY ? 'Set' : 'Not set');
 // console.log('ELEVENLABS_AGENT_ID:', process.env.ELEVENLABS_AGENT_ID ? 'Set' : 'Not set');
 console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set');
+console.log('RAG_BASE_URL:', RAG_BASE_URL);
 
 const app = express();
 app.use(cors());
@@ -250,10 +253,10 @@ app.post('/api/chat', async (req, res) => {
   console.log('🔍 [CHAT API] Request body:', JSON.stringify(req.body, null, 2));
   
   try {
-    console.log('🔍 [CHAT API] Forwarding to RAG backend at localhost:8000...');
+    console.log('🔍 [CHAT API] Forwarding to RAG backend at', RAG_BASE_URL + '...');
     
-    // Should forward to http://localhost:8000/v1/chat/completions
-    const response = await fetch('http://localhost:8000/v1/chat/completions', {
+    // Should forward to the configured RAG backend URL
+    const response = await fetch(`${RAG_BASE_URL}/v1/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
