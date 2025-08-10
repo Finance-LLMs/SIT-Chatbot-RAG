@@ -13,7 +13,7 @@ const RAG_BASE_URL = process.env.RAG_BASE_URL || 'http://127.0.0.1:8000';
 console.log('Environment check:');
 console.log('ELEVENLABS_API_KEY:', process.env.ELEVENLABS_API_KEY ? 'Set' : 'Not set');
 // console.log('ELEVENLABS_AGENT_ID:', process.env.ELEVENLABS_AGENT_ID ? 'Set' : 'Not set');
-console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set');
+// console.log('OPENAI_API_KEY:', process.env.OPENAI_API_KEY ? 'Set' : 'Not set');
 console.log('RAG_BASE_URL:', RAG_BASE_URL);
 
 const app = express();
