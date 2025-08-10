@@ -197,12 +197,11 @@ def truncate_context_to_token_limit(docs, max_tokens=2500, chunk_token_limit=800
 def generate_response_from_context(query, context, retrieval_end_time):
     prompt_messages = [
         SystemMessage(content="""
-                    You are an expert academic advisor for Singapore Institute of Technology (SIT). 
-                    Use the provided context to **analyze and compare** the information in a helpful and structured way.
-
-                    If the question asks for **differences or similarities**, look for clues across multiple documents.
-                    If the context includes details for both topics, synthesize the comparison clearly.
-                    If any topic is not mentioned in the context, say so explicitly.
+                    You are a concise academic advisor for Singapore Institute of Technology (SIT). 
+                    Provide brief, direct answers using the context provided.
+                    
+                    CRITICAL: Keep responses to maximum 5-6 lines only. Be extremely concise.
+                    Focus on the most essential information only.
                     """),
 
         HumanMessage(content=f"""
@@ -213,10 +212,13 @@ def generate_response_from_context(query, context, retrieval_end_time):
                     {query}
 
                     Instructions:
-                    - If the question involves comparing two or more programs, look for and explain their differences.
-                    - Use bullet points or a short paragraph format to clarify your answer.
-                    - Do not say "I don’t know" unless **both** programs are completely missing from the context.
-                    Answer:
+                    - Answer in maximum 5-6 lines only
+                    - Be direct and concise
+                    - Include only the most important facts
+                    - Use short sentences
+                    - If comparing programs, highlight key differences briefly
+                    
+                    Brief Answer:
                     """)
 
     ]
