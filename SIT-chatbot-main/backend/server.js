@@ -247,6 +247,29 @@ app.post("/api/text-to-speech", async (req, res) => {
 //   });
 // });
 
+// Test backend connectivity on startup
+async function testBackendConnection() {
+  try {
+    console.log('🔗 Testing connection to RAG backend...');
+    const response = await fetch(`${RAG_BASE_URL}/health`, {
+      method: 'GET',
+      timeout: 5000
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log('✅ RAG backend is responding:', data);
+      return true;
+    } else {
+      console.log('❌ RAG backend returned status:', response.status);
+      return false;
+    }
+  } catch (error) {
+    console.log('❌ Failed to connect to RAG backend:', error.message);
+    return false;
+  }
+}
+
 // Proxy route for chat completions
 app.post('/api/chat', async (req, res) => {
   console.log('🔍 [CHAT API] Received request to /api/chat');
@@ -261,13 +284,16 @@ app.post('/api/chat', async (req, res) => {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(req.body)
+      body: JSON.stringify(req.body),
+      timeout: 30000 // 30 second timeout
     });
     
     console.log('🔍 [CHAT API] RAG backend response status:', response.status);
     
     if (!response.ok) {
-      throw new Error(`RAG backend returned status ${response.status}`);
+      const errorText = await response.text();
+      console.log('🔍 [CHAT API] RAG backend error response:', errorText);
+      throw new Error(`RAG backend returned status ${response.status}: ${errorText}`);
     }
     
     const data = await response.json();
@@ -276,7 +302,11 @@ app.post('/api/chat', async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error('❌ [CHAT API] Error:', error);
-    res.status(500).json({ error: 'Failed to get response from RAG backend', details: error.message });
+    res.status(500).json({ 
+      error: 'Failed to get response from RAG backend', 
+      details: error.message,
+      backend_url: RAG_BASE_URL
+    });
   }
 });
 
@@ -287,6 +317,20 @@ app.get("*", (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}: http://localhost:${PORT}`);
-});
+const HOST = process.env.HOST || '127.0.0.1';
+
+// Test backend connection and start server
+async function startServer() {
+  const backendOnline = await testBackendConnection();
+  if (!backendOnline) {
+    console.log('⚠️  Warning: RAG backend is not responding. Frontend will still start but chat functionality may not work.');
+  }
+
+  app.listen(PORT, HOST, () => {
+    console.log(`Server running on ${HOST}:${PORT}`);
+    console.log(`Frontend accessible at: http://${HOST}:${PORT}`);
+    console.log(`RAG Backend URL: ${RAG_BASE_URL}`);
+  });
+}
+
+startServer();
