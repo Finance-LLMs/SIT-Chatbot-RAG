@@ -1,0 +1,21 @@
+[Unit]
+Description=SIT Frontend Node server (server.js)
+After=network.target sit-backend.service
+Requires=sit-backend.service
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/SIT-Chatbot-RAG/SIT-chatbot-main/backend
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=3000
+Environment=RAG_BASE_URL=http://127.0.0.1:8000
+ExecStart=/usr/bin/node /home/ubuntu/SIT-Chatbot-RAG/SIT-chatbot-main/backend/server.js
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

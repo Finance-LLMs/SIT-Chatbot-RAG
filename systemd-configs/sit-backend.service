@@ -1,0 +1,19 @@
+[Unit]
+Description=SIT RAG FastAPI (server.py)
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/home/ubuntu/SIT-Chatbot-RAG/SITCHATBOTLLM
+Environment="PATH=/home/ubuntu/SIT-Chatbot-RAG/venv/bin"
+Environment="HOST=127.0.0.1"
+Environment="PORT=8000"
+ExecStart=/home/ubuntu/SIT-Chatbot-RAG/venv/bin/python /home/ubuntu/SIT-Chatbot-RAG/SITCHATBOTLLM/server.py
+Restart=always
+RestartSec=3
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
