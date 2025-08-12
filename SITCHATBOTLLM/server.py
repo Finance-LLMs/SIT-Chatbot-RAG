@@ -380,11 +380,20 @@ if __name__ == "__main__":
     port = int(os.getenv("PORT", "8000"))
     
     print(f"🌐 Server will bind to {host}:{port}")
-
-    uvicorn.run(
-        "server:app",
-        host=host,
-        port=port,
-        reload=False,  # Disable reload in production
-        log_level="info"
-    )
+    print(f"📁 Current working directory: {os.getcwd()}")
+    print(f"🐍 Python executable: {os.sys.executable}")
+    
+    try:
+        print("🔄 Starting uvicorn server...")
+        uvicorn.run(
+            "server:app",
+            host=host,
+            port=port,
+            reload=False,  # Disable reload in production
+            log_level="info"
+        )
+    except Exception as e:
+        print(f"❌ Failed to start server: {e}")
+        import traceback
+        traceback.print_exc()
+        exit(1)

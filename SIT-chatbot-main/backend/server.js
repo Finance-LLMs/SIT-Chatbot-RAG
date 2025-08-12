@@ -248,26 +248,32 @@ app.post("/api/text-to-speech", async (req, res) => {
 // });
 
 // Test backend connectivity on startup
-async function testBackendConnection() {
-  try {
-    console.log('🔗 Testing connection to RAG backend...');
-    const response = await fetch(`${RAG_BASE_URL}/health`, {
-      method: 'GET',
-      timeout: 5000
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log('✅ RAG backend is responding:', data);
-      return true;
-    } else {
-      console.log('❌ RAG backend returned status:', response.status);
-      return false;
+async function testBackendConnection(retries = 5, delay = 2000) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`🔗 Testing connection to RAG backend... (attempt ${i + 1}/${retries})`);
+      const response = await fetch(`${RAG_BASE_URL}/health`, {
+        method: 'GET',
+        timeout: 5000
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('✅ RAG backend is responding:', data);
+        return true;
+      } else {
+        console.log(`❌ RAG backend returned status: ${response.status}`);
+      }
+    } catch (error) {
+      console.log(`❌ Failed to connect to RAG backend (attempt ${i + 1}): ${error.message}`);
     }
-  } catch (error) {
-    console.log('❌ Failed to connect to RAG backend:', error.message);
-    return false;
+    
+    if (i < retries - 1) {
+      console.log(`⏳ Waiting ${delay}ms before retry...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
   }
+  return false;
 }
 
 // Proxy route for chat completions

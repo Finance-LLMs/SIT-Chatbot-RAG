@@ -2,6 +2,8 @@
 Description=SIT Frontend Node server (server.js)
 After=network.target sit-backend.service
 Requires=sit-backend.service
+# Wait for backend to be fully ready
+ExecStartPre=/bin/bash -c 'until curl -s http://127.0.0.1:8000/health; do sleep 1; done'
 
 [Service]
 User=ubuntu
