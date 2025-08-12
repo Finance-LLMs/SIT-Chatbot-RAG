@@ -45,56 +45,70 @@ app.post("/api/speech-to-text", upload.single("audio"), async (req, res) => {
     console.log("📊 File details - Size:", req.file.size, "bytes, Type:", req.file.mimetype);
     
     // Debug: Check API key
-    console.log("🔑 API Key check:", process.env.ELEVENLABS_API_KEY ? `Loaded (${process.env.ELEVENLABS_API_KEY.substring(0, 8)}...)` : 'NOT FOUND');
-    
-    // Optimize audio format using ffmpeg (16kHz, mono, PCM)
-    const optimizedAudioPath = req.file.path + '_optimized.wav';
-    console.log("🔧 Optimizing audio format with ffmpeg...");
-    
-    const ffmpegCommand = `ffmpeg -i "${req.file.path}" -ar 16000 -ac 1 -c:a pcm_s16le "${optimizedAudioPath}" -y`;
-    console.log("📝 FFmpeg command:", ffmpegCommand);
-    
-    try {
-      await new Promise((resolve, reject) => {
-        exec(ffmpegCommand, (error, stdout, stderr) => {
-          if (error) {
-            console.error("❌ FFmpeg error:", error);
-            reject(error);
-          } else {
-            console.log("✅ Audio optimized successfully");
-            console.log("📊 FFmpeg output:", stdout);
-            if (stderr) console.log("📊 FFmpeg stderr:", stderr);
-            resolve(stdout);
-          }
-        });
-      });
-    } catch (ffmpegError) {
-      console.error("❌ Audio optimization failed, using original file:", ffmpegError);
-      // Fall back to original file if ffmpeg fails
-      fs.copyFileSync(req.file.path, optimizedAudioPath);
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      console.error("❌ ELEVENLABS_API_KEY not found in environment");
+      return res.status(500).json({ error: "API key not configured" });
     }
     
-    // Create FormData using form-data library with optimized audio
+    if (!apiKey.startsWith('sk_')) {
+      console.error("❌ Invalid API key format:", apiKey.substring(0, 20));
+      return res.status(500).json({ error: "Invalid API key format" });
+    }
+    
+    console.log("🔑 API Key check: Loaded (", apiKey.substring(0, 8), "...) Length:", apiKey.length);
+    
+    // Additional validation to catch corruption early
+    if (apiKey.includes(' ')) {
+      console.error("❌ API key contains spaces - potential corruption detected!");
+      console.error("Full key for debugging:", JSON.stringify(apiKey));
+    }
+    
+    if (!apiKey.startsWith('sk_')) {
+      console.error("❌ API key doesn't start with 'sk_' - invalid format!");
+      return res.status(500).json({ error: 'Invalid API key configuration' });
+    }
+    
+    // Skip FFmpeg optimization for now since it's not always available
+    // ElevenLabs can handle the audio format directly
+    const audioToProcess = req.file.path;
+    console.log("� Using original audio file directly");
+    
+    // Create FormData using form-data library
     const formData = new FormData();
     formData.append('model_id', 'scribe_v1');
     formData.append('language', 'en');
-    formData.append('file', fs.createReadStream(optimizedAudioPath), {
-      filename: 'audio_optimized.wav',
+    formData.append('file', fs.createReadStream(audioToProcess), {
+      filename: 'audio.wav',
       contentType: 'audio/wav',
-      knownLength: fs.statSync(optimizedAudioPath).size
+      knownLength: fs.statSync(audioToProcess).size
     });
 
     console.log("🔄 Sending request to ElevenLabs STT API using axios...");
     console.log("📝 Request parameters: model_id=scribe_v1, language=en");
     
+    // Get FormData headers first
+    const formDataHeaders = formData.getHeaders();
+    
+    // Create completely clean headers object to avoid corruption
+    const requestHeaders = {
+      'xi-api-key': apiKey.trim(), // Ensure no whitespace
+      'Accept': 'application/json',
+      'Content-Type': formDataHeaders['content-type'] // Only take the content-type from FormData
+    };
+    
+    console.log("🔧 Request headers:", Object.keys(requestHeaders));
+    console.log("🔑 API key length:", requestHeaders['xi-api-key'].length);
+    console.log("🔑 API key preview:", requestHeaders['xi-api-key'].substring(0, 12) + "...");
+    
+    // Validate API key format before sending
+    if (!requestHeaders['xi-api-key'].startsWith('sk_') || requestHeaders['xi-api-key'].length < 40) {
+      throw new Error('Invalid API key format detected');
+    }
+    
     // Use axios which handles multipart form data properly
     const response = await axios.post('https://api.elevenlabs.io/v1/speech-to-text', formData, {
-    headers: {
-      'xi-api-key': process.env.ELEVENLABS_API_KEY,
-      'Accept': 'application/json',
-      'Content-Type': 'multipart/form-data',
-      ...formData.getHeaders()
-    },
+      headers: requestHeaders,
       timeout: 30000 // 30 second timeout
     });
 
@@ -102,9 +116,9 @@ app.post("/api/speech-to-text", upload.single("audio"), async (req, res) => {
     
     // Clean up uploaded files
     try {
-      fs.unlinkSync(req.file.path); // Original file
-      if (fs.existsSync(optimizedAudioPath)) {
-        fs.unlinkSync(optimizedAudioPath); // Optimized file
+      if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+        fs.unlinkSync(req.file.path);
+        console.log("🗑️ Cleaned up temporary audio file");
       }
     } catch (err) {
       console.error("Error deleting temporary files:", err);
@@ -127,10 +141,8 @@ app.post("/api/speech-to-text", upload.single("audio"), async (req, res) => {
     // Clean up uploaded files in case of error
     if (req.file && req.file.path) {
       try {
-        fs.unlinkSync(req.file.path); // Original file
-        const optimizedAudioPath = req.file.path + '_optimized.wav';
-        if (fs.existsSync(optimizedAudioPath)) {
-          fs.unlinkSync(optimizedAudioPath); // Optimized file
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path); // Original file
         }
       } catch (cleanupErr) {
         console.error("Error deleting temporary files during cleanup:", cleanupErr);

@@ -510,6 +510,70 @@ body::before {
     transform: scale(1.05);
 }
 
+/* Video Avatar Container */
+.video-avatar-container {
+    width: 100%;
+    height: 100%;
+    min-height: 300px;
+    position: relative;
+    border-radius: 15px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.avatar-media {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 15px;
+    transition: opacity 0.3s ease;
+    position: absolute;
+    top: 0;
+    left: 0;
+}
+
+.video-avatar-container .user-speaking-image {
+    opacity: 1;
+}
+
+.video-avatar-container .speaking-video {
+    opacity: 0;
+}
+
+/* TTS Speaking State - Show Video */
+.avatar-speaking .video-avatar-container .user-speaking-image {
+    opacity: 0;
+}
+
+.avatar-speaking .video-avatar-container .speaking-video {
+    opacity: 1;
+}
+
+/* Enhanced Speaking Effects for Video */
+.avatar-speaking .video-avatar-container {
+    transform: scale(1.02);
+    box-shadow: 
+        0 0 0 4px rgba(0, 94, 184, 0.3),
+        0 0 0 8px rgba(0, 94, 184, 0.1),
+        0 8px 32px rgba(0, 0, 0, 0.15);
+}
+
+/* Fallback for video loading states */
+.video-avatar-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: -1;
+}
+
 /* Speaking Indicator */
 .speaking-indicator {
     position: absolute;

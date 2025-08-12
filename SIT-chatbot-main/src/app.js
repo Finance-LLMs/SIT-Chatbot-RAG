@@ -1,82 +1,12 @@
 // --- src/app.js ---
-import { Conversation } from "@elevenlabs/client";
 
-let conversation = null;
+// Simplified: one image and one video avatar, no HTML/SVG character.
+let conversation = null; // kept for compatibility with existing calls
 let sttStream = null;
 let isRecording = false;
 let user_input = "";
-let mouthAnimationInterval = null;
-let currentMouthState = "M130,170 Q150,175 170,170"; // closed mouth
 let currentState = "ready"; // ready, connected, recording, processing
 let inputMode = "voice"; // voice or text
-
-// Create the animated otter avatar SVG
-function createAvatarSVG() {
-  return `
-        <svg viewBox="0 0 300 400" fill="none" xmlns="http://www.w3.org/2000/svg" class="avatar-svg otter-avatar">
-            <!-- Otter body -->
-            <ellipse cx="150" cy="240" rx="70" ry="90" fill="#8B5A2B" />
-            
-            <!-- Lighter belly -->
-            <ellipse cx="150" cy="250" rx="50" ry="65" fill="#D2B48C" />
-            
-            <!-- Tail -->
-            <path d="M95,270 C75,290 75,320 90,340 C105,360 120,350 125,340" fill="#8B5A2B" />
-            
-            <!-- Head -->
-            <ellipse cx="150" cy="140" rx="60" ry="55" fill="#8B5A2B" />
-            
-            <!-- Ears -->
-            <ellipse cx="105" cy="100" rx="15" ry="18" fill="#8B5A2B" />
-            <ellipse cx="195" cy="100" rx="15" ry="18" fill="#8B5A2B" />
-            <ellipse cx="105" cy="100" rx="8" ry="10" fill="#D2B48C" />
-            <ellipse cx="195" cy="100" rx="8" ry="10" fill="#D2B48C" />
-            
-            <!-- Face white patch -->
-            <ellipse cx="150" cy="150" rx="40" ry="35" fill="#F5F5DC" />
-            
-            <!-- Eyes -->
-            <ellipse cx="130" cy="130" rx="10" ry="12" fill="white" />
-            <ellipse cx="170" cy="130" rx="10" ry="12" fill="white" />
-            <circle cx="130" cy="130" r="6" fill="#000000" />
-            <circle cx="170" cy="130" r="6" fill="#000000" />
-            <circle cx="128" cy="128" r="2" fill="white" />
-            <circle cx="168" cy="128" r="2" fill="white" />
-            
-            <!-- Nose -->
-           <ellipse cx="150" cy="155" rx="12" ry="8" fill="#5D4037" />
-           
-           <!-- Whiskers -->
-           <line x1="155" y1="155" x2="190" y2="145" stroke="#5D4037" stroke-width="1.5" />
-           <line x1="155" y1="158" x2="190" y2="158" stroke="#5D4037" stroke-width="1.5" />
-           <line x1="155" y1="161" x2="190" y2="170" stroke="#5D4037" stroke-width="1.5" />
-           <line x1="145" y1="155" x2="110" y2="145" stroke="#5D4037" stroke-width="1.5" />
-           <line x1="145" y1="158" x2="110" y2="158" stroke="#5D4037" stroke-width="1.5" />
-           <line x1="145" y1="161" x2="110" y2="170" stroke="#5D4037" stroke-width="1.5" />
-           
-           <!-- Mouth -->
-           <path 
-               id="avatarMouth"
-               d="${currentMouthState}"
-               stroke="#5D4037" 
-               stroke-width="1.5" 
-               fill="none"
-           />
-           
-           <!-- SIT graduation cap -->
-           <path d="M100,85 L200,85 L200,70 L100,70 Z" fill="#003B73" />
-           <path d="M120,70 L180,70 L150,40 Z" fill="#003B73" />
-           <path d="M150,40 L150,30 L160,25" stroke="#FFD700" stroke-width="2" />
-           <circle cx="160" cy="25" r="3" fill="#FFD700" />
-       </svg>
-   `;
-}
-
-// Initialize avatar
-function initializeAvatar() {
-  const avatarWrapper = document.getElementById("animatedAvatar");
-  avatarWrapper.innerHTML = createAvatarSVG();
-}
 
 // UI State Management
 function updatePrimaryButton(state, text = null, icon = null) {
@@ -183,68 +113,233 @@ function switchInputMode(mode) {
   }
 }
 
-// Animate mouth when speaking
-function startMouthAnimation() {
-  if (mouthAnimationInterval) return;
+// Media Avatar (single image + single video)
+let idleImage = null; // shown when not speaking
+let speakingVideo = null; // shown during TTS playback
+let mediaLoaded = false; // at least image loaded
+let imageLoaded = false;
+let videoLoaded = false;
 
+// Initialize avatar with video support
+async function initializeAvatar() {
+  const avatarWrapper = document.getElementById("animatedAvatar");
+
+  await loadMediaAssets();
+
+  // Always build container if we have at least the image
+  createMediaAvatar();
+}
+
+// Load video assets
+async function loadMediaAssets() {
+  try {
+    // Create video element (TTS speaking)
+    speakingVideo = document.createElement('video');
+
+    // Create image element (idle)
+    idleImage = document.createElement('img');
+
+    // Video properties (muted to satisfy autoplay policies)
+    speakingVideo.autoplay = false;
+    speakingVideo.loop = true;
+    speakingVideo.muted = true;
+    speakingVideo.setAttribute('muted', '');
+    speakingVideo.playsInline = true;
+    speakingVideo.preload = 'auto';
+    speakingVideo.style.width = '100%';
+    speakingVideo.style.height = '100%';
+    speakingVideo.style.objectFit = 'cover';
+
+    // Image properties
+    idleImage.style.width = '100%';
+    idleImage.style.height = '100%';
+    idleImage.style.objectFit = 'cover';
+
+    // Prefer relative paths that work in dev server and backend
+    const imageCandidates = ['assets/images/otter.jpg', '/static/assets/images/otter.jpg'];
+    const videoCandidates = ['assets/videos/otter.mp4', '/static/assets/videos/otter.mp4'];
+
+    // Load image with fallback
+    imageLoaded = await new Promise((resolve) => {
+      let idx = 0;
+      const tryNext = () => {
+        if (idx >= imageCandidates.length) return resolve(false);
+        const src = imageCandidates[idx++];
+        idleImage.src = src;
+        const onLoad = () => { idleImage.removeEventListener('error', onError); resolve(true); };
+        const onError = () => { idleImage.removeEventListener('load', onLoad); tryNext(); };
+        idleImage.addEventListener('load', onLoad, { once: true });
+        idleImage.addEventListener('error', onError, { once: true });
+      };
+      tryNext();
+    });
+
+    // Load video with fallback
+    videoLoaded = await new Promise((resolve) => {
+      let idx = 0;
+      const tryNext = () => {
+        if (idx >= videoCandidates.length) return resolve(false);
+        const src = videoCandidates[idx++];
+        speakingVideo.src = src;
+        const onReady = () => { cleanup(); resolve(true); };
+        const onError = () => { cleanup(); tryNext(); };
+        const cleanup = () => {
+          speakingVideo.removeEventListener('canplaythrough', onReady);
+          speakingVideo.removeEventListener('loadeddata', onReady);
+          speakingVideo.removeEventListener('error', onError);
+        };
+        speakingVideo.addEventListener('canplaythrough', onReady, { once: true });
+        speakingVideo.addEventListener('loadeddata', onReady, { once: true });
+        speakingVideo.addEventListener('error', onError, { once: true });
+        speakingVideo.load();
+      };
+      tryNext();
+    });
+
+    mediaLoaded = imageLoaded; // consider loaded if image is ready
+  } catch (error) {
+    console.log("📝 Media assets not available:", error.message);
+    mediaLoaded = imageLoaded;
+  }
+}
+
+// Create media avatar container (image + video)
+function createMediaAvatar() {
+  const avatarWrapper = document.getElementById("animatedAvatar");
+  
+  // Create container for media
+  const mediaContainer = document.createElement('div');
+  mediaContainer.className = 'video-avatar-container';
+  mediaContainer.style.cssText = `
+    position: relative;
+    width: 100%;
+    height: 100%;
+    border-radius: 15px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  `;
+  
+  // Add idle image (initially visible)
+  if (idleImage && imageLoaded) {
+    idleImage.className = 'avatar-media user-speaking-image';
+    idleImage.style.cssText += `
+      position: absolute;
+      top: 0;
+      left: 0;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    `;
+    mediaContainer.appendChild(idleImage);
+  }
+  
+  // Add speaking video (initially hidden)
+  if (speakingVideo && videoLoaded) {
+    speakingVideo.className = 'avatar-media speaking-video';
+    speakingVideo.style.cssText += `
+      position: absolute;
+      top: 0;
+      left: 0;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    `;
+    mediaContainer.appendChild(speakingVideo);
+  }
+  
+  // Replace content
+  avatarWrapper.innerHTML = '';
+  avatarWrapper.appendChild(mediaContainer);
+}
+
+// Speaking state helpers (video only)
+function startSpeakingVisual() {
   const avatarWrapper = document.getElementById("animatedAvatar");
   if (avatarWrapper) {
     avatarWrapper.classList.add("avatar-speaking");
-
     const speakingIndicator = document.getElementById("speakingIndicator");
-    if (speakingIndicator) {
-      speakingIndicator.classList.remove("hidden");
-    }
+    if (speakingIndicator) speakingIndicator.classList.remove("hidden");
   }
-
-  mouthAnimationInterval = setInterval(() => {
-    const mouthElement = document.getElementById("avatarMouth");
-    if (mouthElement) {
-      const shouldChangeMouth = Math.random() > 0.4;
-
-      if (shouldChangeMouth) {
-        currentMouthState =
-          currentMouthState === "M130,170 Q150,175 170,170"
-            ? "M130,170 Q150,195 170,170"
-            : "M130,170 Q150,175 170,170";
-
-        mouthElement.setAttribute("d", currentMouthState);
-        mouthElement.setAttribute(
-          "fill",
-          currentMouthState.includes("195") ? "#8B4513" : "none"
-        );
-        mouthElement.setAttribute(
-          "opacity",
-          currentMouthState.includes("195") ? "0.7" : "1"
-        );
-      }
-    }
-  }, Math.random() * 200 + 100);
+  switchToTTSSpeaking();
 }
 
-function stopMouthAnimation() {
-  if (mouthAnimationInterval) {
-    clearInterval(mouthAnimationInterval);
-    mouthAnimationInterval = null;
-  }
-
+function stopSpeakingVisual() {
   const avatarWrapper = document.getElementById("animatedAvatar");
   if (avatarWrapper) {
     avatarWrapper.classList.remove("avatar-speaking");
-
     const speakingIndicator = document.getElementById("speakingIndicator");
-    if (speakingIndicator) {
-      speakingIndicator.classList.add("hidden");
-    }
+    if (speakingIndicator) speakingIndicator.classList.add("hidden");
+  }
+  switchToIdleState();
+}
+
+// Video switching functions
+function switchToSpeakingVideo() {
+  if (!idleImage) return;
+  if (!videoLoaded || !speakingVideo) {
+    // No video available, keep showing image
+    idleImage.style.opacity = '1';
+    return;
   }
 
-  currentMouthState = "M130,170 Q150,175 170,170";
-  const mouthElement = document.getElementById("avatarMouth");
-  if (mouthElement) {
-    mouthElement.setAttribute("d", currentMouthState);
-    mouthElement.setAttribute("fill", "none");
-    mouthElement.setAttribute("opacity", "1");
+  // Hide image, show video
+  idleImage.style.opacity = '0';
+  speakingVideo.style.opacity = '1';
+
+  // Try robust playback with retries
+  const tryPlay = async (attempt = 1) => {
+    try {
+      speakingVideo.currentTime = 0;
+      await speakingVideo.play();
+    } catch (e) {
+      if (attempt < 3) {
+        // Ensure autoplay-friendly flags and retry shortly
+        speakingVideo.muted = true;
+        speakingVideo.setAttribute('muted', '');
+        speakingVideo.playsInline = true;
+        setTimeout(() => tryPlay(attempt + 1), 150);
+      } else {
+        // Give up and show image
+        speakingVideo.style.opacity = '0';
+        idleImage.style.opacity = '1';
+      }
+    }
+  };
+  tryPlay();
+}
+
+function switchToIdleState() {
+  if (!idleImage) return;
+  speakingVideo.style.opacity = '0';
+  speakingVideo.pause();
+  idleImage.style.opacity = '1';
+}
+
+// New functions for user state management
+function switchToUserSpeaking() {
+  if (!idleImage) return;
+  speakingVideo.style.opacity = '0';
+  speakingVideo.pause();
+  idleImage.style.opacity = '1';
+}
+
+function switchToTTSSpeaking() {
+  if (!idleImage) return;
+  if (!videoLoaded || !speakingVideo) {
+    idleImage.style.opacity = '1';
+    return;
   }
+  idleImage.style.opacity = '0';
+  speakingVideo.style.opacity = '1';
+  try {
+    speakingVideo.currentTime = 0;
+    const pp = speakingVideo.play();
+    if (pp && typeof pp.catch === 'function') {
+      pp.catch(() => {
+        speakingVideo.muted = true;
+        speakingVideo.setAttribute('muted', '');
+        speakingVideo.play().catch(() => {});
+      });
+    }
+  } catch {}
 }
 
 async function requestMicrophonePermission() {
@@ -311,6 +406,11 @@ async function startSpeechToText() {
   try {
     isRecording = true;
     console.log("[Frontend] Starting STT recording");
+
+    // Switch to image when user starts speaking
+    if (currentAvatarType === 'video' && videosLoaded) {
+      switchToUserSpeaking();
+    }
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     const mediaRecorder = new MediaRecorder(stream);
@@ -412,23 +512,10 @@ async function sendProcessedText(text) {
     return;
   }
 
-  startMouthAnimation();
+  // No visual start here. We switch visuals when TTS audio actually plays.
 
   // Debug: Log available methods on conversation object
-  console.log(
-    "🔍 [DEBUG] Conversation object methods:",
-    Object.getOwnPropertyNames(conversation)
-  );
-  console.log(
-    "🔍 [DEBUG] Conversation prototype methods:",
-    Object.getOwnPropertyNames(Object.getPrototypeOf(conversation))
-  );
-  console.log(
-    "🔍 [DEBUG] Available methods:",
-    Object.getOwnPropertyNames(conversation).filter(
-      (prop) => typeof conversation[prop] === "function"
-    )
-  );
+  // Debug logs removed
 
   try {
     if (typeof conversation.sendUserMessage === "function") {
@@ -452,7 +539,7 @@ async function sendVoiceMessage(text) {
   if (!text.trim()) return;
 
   updatePrimaryButton("processing");
-  startMouthAnimation();
+  // Visual switches when TTS audio actually starts
 
   try {
     // Send to RAG backend for response
@@ -486,13 +573,13 @@ async function sendVoiceMessage(text) {
     // Convert response to speech
     await playTextToSpeech(botResponse);
     
-    stopMouthAnimation();
+  stopSpeakingVisual();
     updatePrimaryButton("connected");
     
   } catch (error) {
     console.error("[Frontend] Error sending voice message:", error);
     showError("Failed to process your voice message.");
-    stopMouthAnimation();
+  stopSpeakingVisual();
     updatePrimaryButton("connected");
   }
 }
@@ -520,24 +607,23 @@ async function playTextToSpeech(text) {
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
     
-    audio.onplay = () => {
-      console.log("[Frontend] Started playing TTS audio");
-      startMouthAnimation();
-    };
-    
+    // Link avatar: play video while TTS audio is playing; image otherwise
+    audio.onplay = () => startSpeakingVisual();
     audio.onended = () => {
-      console.log("[Frontend] Finished playing TTS audio");
-      stopMouthAnimation();
+      stopSpeakingVisual();
       URL.revokeObjectURL(audioUrl);
     };
-    
-    audio.onerror = (error) => {
-      console.error("[Frontend] Error playing TTS audio:", error);
-      stopMouthAnimation();
+    audio.onerror = () => {
+      stopSpeakingVisual();
       URL.revokeObjectURL(audioUrl);
     };
-    
-    await audio.play();
+
+    try {
+      await audio.play();
+    } catch (playError) {
+      console.error("❌ Audio play failed:", playError);
+      stopSpeakingVisual();
+    }
     
   } catch (error) {
     console.error("[Frontend] Error with text-to-speech:", error);
@@ -550,7 +636,7 @@ async function sendTextMessage(text) {
 
   addMessageToChat(text, "user");
   updatePrimaryButton("processing");
-  startMouthAnimation();
+  // Visual switches when TTS audio actually starts
 
   try {
     // Use RAG backend instead of ElevenLabs for text messages
@@ -579,13 +665,13 @@ async function sendTextMessage(text) {
     const botResponse = data.choices?.[0]?.message?.content || 'Sorry, I could not process your request.';
     
     addMessageToChat(botResponse, "bot");
-    stopMouthAnimation();
+  stopSpeakingVisual();
     updatePrimaryButton("connected");
     
   } catch (error) {
     console.error("[Frontend] Error sending text message:", error);
     showError("Failed to send your message.");
-    stopMouthAnimation();
+  stopSpeakingVisual();
     updatePrimaryButton("connected");
   }
 }
@@ -628,7 +714,7 @@ async function endConversation() {
     updatePrimaryButton("ready");
     hideSecondaryButton();
     updateStatus(false);
-    stopMouthAnimation();
+  stopSpeakingVisual();
   } catch (error) {
     console.error("Error ending conversation:", error);
     showError("Failed to properly end conversation.");
@@ -673,7 +759,7 @@ async function handleSendToAgent() {
 document.addEventListener("DOMContentLoaded", async () => {
   console.log("🚀 [INIT] Application starting...");
   updateStatus(false);
-  initializeAvatar();
+  await initializeAvatar();
   updatePrimaryButton("ready");
 
   // Primary action button

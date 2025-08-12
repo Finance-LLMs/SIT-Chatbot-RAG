@@ -22,7 +22,8 @@ module.exports = {
             patterns: [
                 { from: 'src/index.html', to: 'index.html' },
                 { from: 'src/styles.css', to: 'styles.css' },
-                { from: 'src/sit-data', to: 'sit-data', noErrorOnMissing: true }
+                { from: 'src/sit-data', to: 'sit-data', noErrorOnMissing: true },
+                { from: 'src/assets', to: 'assets', noErrorOnMissing: true }
             ],
         }),
     ]
