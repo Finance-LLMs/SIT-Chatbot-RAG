@@ -41,16 +41,22 @@ def load_bm25_index():
             print(f"📋 Available tables: {tables}")
         
         bm25_table = db.open_table("bm25_index")
-        
+
+        print("BM25 table opened successfully")
+
         # Load all BM25 data from LanceDB
         bm25_data = bm25_table.to_pandas()
+
+        print(f"✅ BM25 data loaded from LanceDB in {time.time() - start:.2f} seconds")
         
         # Extract documents and metadata
         documents = bm25_data['text'].tolist()
         metadata_list = [eval(metadata) if isinstance(metadata, str) and metadata.startswith('{') 
                         else {'source': 'unknown'} 
                         for metadata in bm25_data['metadata'].tolist()]
-        
+
+        print("Extracted documents and metadata")
+
         # Rebuild BM25 index from documents
         tokenized_docs = [normalize_text(doc).split() for doc in documents]
         bm25 = BM25Okapi(tokenized_docs)
