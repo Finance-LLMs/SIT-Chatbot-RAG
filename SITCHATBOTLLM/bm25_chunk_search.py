@@ -57,7 +57,12 @@ def load_bm25_index():
         
         print(f"✅ BM25 index loaded from LanceDB in {time.time() - start:.2f} seconds")
         print(f"📊 Loaded {len(documents)} documents for BM25 search")
-        
+
+        print("Returned BM25 index, documents, and metadata list")
+        print(f"BM25 index: {bm25}")
+        print(f"Documents: {documents}")
+        print(f"Metadata: {metadata_list}")
+
         return bm25, documents, metadata_list
         
     except Exception as e:
