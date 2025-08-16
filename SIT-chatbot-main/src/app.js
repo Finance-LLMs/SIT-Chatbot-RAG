@@ -408,11 +408,18 @@ async function startSpeechToText() {
     console.log("[Frontend] Starting STT recording");
 
     // Switch to image when user starts speaking
-    if (currentAvatarType === 'video' && videosLoaded) {
+    if (videoLoaded && speakingVideo) {
       switchToUserSpeaking();
     }
 
+    // Request microphone permission
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    
+    // Check if MediaRecorder is supported
+    if (!window.MediaRecorder) {
+      throw new Error("MediaRecorder is not supported in this browser");
+    }
+    
     const mediaRecorder = new MediaRecorder(stream);
     const audioChunks = [];
 
@@ -471,7 +478,7 @@ async function startSpeechToText() {
     return sttStream;
   } catch (error) {
     console.error("[Frontend] Error starting speech to text:", error);
-    showError("Failed to start speech recognition. " + error.message);
+    showError("Failed to start speech recognition: " + error.message);
     isRecording = false;
     updatePrimaryButton("connected");
     return null;
