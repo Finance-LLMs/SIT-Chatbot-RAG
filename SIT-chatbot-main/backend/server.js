@@ -335,8 +335,8 @@ app.get("*", (req, res) => {
 });
 
 const PORT = process.env.PORT || 3000;
-// const HOST = process.env.HOST || '127.0.0.1';
-const HOST = process.env.HOST || '0.0.0.0';
+const HOST = process.env.HOST || '127.0.0.1';
+// const HOST = process.env.HOST || '0.0.0.0';
 
 // Test backend connection and start server
 async function startServer() {
