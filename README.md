@@ -209,7 +209,6 @@ SIT-Chatbot-RAG/
 │   ├── package.json                   # Node.js dependencies
 │   └── webpack.config.js              # Build configuration
 ├── SITCHATBOTLLM/                     # RAG Backend
-│   ├── data/                          # Vector database (download separately)
 │   ├── server.py                      # FastAPI RAG server
 │   ├── bm25_chunk_search.py           # Search implementation
 │   ├── requirements.txt               # Python dependencies
