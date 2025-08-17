@@ -307,10 +307,12 @@ function switchToSpeakingVideo() {
 }
 
 function switchToIdleState() {
+  console.log("[Frontend] Switching to idle state");
   if (!idleImage) return;
   speakingVideo.style.opacity = '0';
   speakingVideo.pause();
   idleImage.style.opacity = '1';
+  console.log("[Frontend] Otter video stopped, showing idle image");
 }
 
 // New functions for user state management
@@ -322,11 +324,14 @@ function switchToUserSpeaking() {
 }
 
 function switchToTTSSpeaking() {
+  console.log("[Frontend] Switching to TTS speaking mode");
   if (!idleImage) return;
   if (!videoLoaded || !speakingVideo) {
+    console.log("[Frontend] No video available, keeping image");
     idleImage.style.opacity = '1';
     return;
   }
+  console.log("[Frontend] Starting otter speaking video");
   idleImage.style.opacity = '0';
   speakingVideo.style.opacity = '1';
   try {
@@ -334,12 +339,17 @@ function switchToTTSSpeaking() {
     const pp = speakingVideo.play();
     if (pp && typeof pp.catch === 'function') {
       pp.catch(() => {
+        console.log("[Frontend] Video autoplay blocked, enabling mute and retry");
         speakingVideo.muted = true;
         speakingVideo.setAttribute('muted', '');
-        speakingVideo.play().catch(() => {});
+        speakingVideo.play().catch(() => {
+          console.log("[Frontend] Video play still failed after mute");
+        });
       });
     }
-  } catch {}
+  } catch (error) {
+    console.error("[Frontend] Error playing video:", error);
+  }
 }
 
 async function requestMicrophonePermission() {
@@ -586,12 +596,14 @@ async function sendVoiceMessage(text) {
     // Convert response to speech (don't let TTS errors affect the main flow)
     try {
       await playTextToSpeech(botResponse);
+      // TTS will handle its own visual state changes
     } catch (ttsError) {
       console.error("[Frontend] TTS failed but continuing:", ttsError);
       // Don't show error to user for TTS failures, just continue without audio
+      // Stop visual since no audio will play
+      stopSpeakingVisual();
     }
     
-    stopSpeakingVisual();
     updatePrimaryButton("connected");
     
   } catch (error) {
@@ -629,22 +641,44 @@ async function playTextToSpeech(text) {
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
     
-    // Link avatar: play video while TTS audio is playing; image otherwise
-    audio.onplay = () => startSpeakingVisual();
-    audio.onended = () => {
+    // Enhanced audio event handling for precise video synchronization
+    audio.addEventListener('loadeddata', () => {
+      console.log("[Frontend] Audio loaded and ready");
+    });
+    
+    // Start video when audio actually begins playing (not just when play() is called)
+    audio.addEventListener('playing', () => {
+      console.log("[Frontend] Audio started playing - starting otter video");
+      startSpeakingVisual();
+    });
+    
+    // Stop video when audio pauses (if user pauses)
+    audio.addEventListener('pause', () => {
+      console.log("[Frontend] Audio paused - stopping otter video");
+      stopSpeakingVisual();
+    });
+    
+    // Stop video when audio ends
+    audio.addEventListener('ended', () => {
+      console.log("[Frontend] Audio ended - stopping otter video");
       stopSpeakingVisual();
       URL.revokeObjectURL(audioUrl);
-    };
-    audio.onerror = () => {
+    });
+    
+    // Handle audio errors
+    audio.addEventListener('error', () => {
+      console.error("[Frontend] Audio error - stopping otter video");
       stopSpeakingVisual();
       URL.revokeObjectURL(audioUrl);
-    };
+    });
 
     try {
+      console.log("[Frontend] Starting audio playback...");
       await audio.play();
     } catch (playError) {
       console.error("❌ Audio play failed:", playError);
       stopSpeakingVisual();
+      URL.revokeObjectURL(audioUrl);
     }
     
   } catch (error) {
