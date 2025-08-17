@@ -5,6 +5,14 @@ const path = require("path");
 const FormData = require("form-data");
 const axios = require("axios");
 
+// Configure Undici for longer timeouts to handle slow RAG backend responses
+const { setGlobalDispatcher, Agent } = require('undici');
+
+setGlobalDispatcher(new Agent({
+  headersTimeout: 1_200_000, // wait up to 120s for headers
+  bodyTimeout: 0           // disable body timeout, or set a large value
+}));
+
 // Load environment variables from current backend directory
 dotenv.config({ path: path.join(__dirname, '.env') });
 
@@ -266,7 +274,7 @@ async function testBackendConnection(retries = 5, delay = 2000) {
       console.log(`🔗 Testing connection to RAG backend... (attempt ${i + 1}/${retries})`);
       const response = await fetch(`${RAG_BASE_URL}/health`, {
         method: 'GET',
-        timeout: 5000
+        timeout: 10000 // Increased timeout for health check
       });
       
       if (response.ok) {
@@ -303,7 +311,7 @@ app.post('/api/chat', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(req.body),
-      timeout: 30000 // 30 second timeout
+      timeout: 1200000 // Increased to 120 second timeout to match Undici config
     });
     
     console.log('🔍 [CHAT API] RAG backend response status:', response.status);
