@@ -157,7 +157,7 @@ async function loadMediaAssets() {
 
     // Prefer relative paths that work in dev server and backend
     const imageCandidates = ['assets/images/otter.jpg', '/static/assets/images/otter.jpg'];
-    const videoCandidates = ['assets/videos/otter.mp4', '/static/assets/videos/otter.mp4'];
+    const videoCandidates = ['src/videos/otter.mp4']; // Updated to use the MP4 video in src/videos
 
     // Load image with fallback
     imageLoaded = await new Promise((resolve) => {
@@ -587,6 +587,7 @@ async function sendVoiceMessage(text) {
 
 async function playTextToSpeech(text) {
   startSpeakingVisual();
+  switchToTTSSpeaking(); // Ensure the speaking video is shown during TTS
   try {
     const response = await fetch("/api/tts", {
       method: "POST",
@@ -607,6 +608,7 @@ async function playTextToSpeech(text) {
     console.error("Error during TTS playback:", error);
   } finally {
     stopSpeakingVisual();
+    switchToIdleState(); // Ensure the avatar returns to idle state after TTS
   }
 }
 
