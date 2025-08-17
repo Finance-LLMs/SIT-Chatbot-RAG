@@ -577,8 +577,13 @@ async function sendVoiceMessage(text) {
     // Display the text response
     addMessageToChat(botResponse, "bot");
     
-    // Convert response to speech
-    await playTextToSpeech(botResponse);
+    // Convert response to speech (don't let TTS errors affect the main flow)
+    try {
+      await playTextToSpeech(botResponse);
+    } catch (ttsError) {
+      console.error("[Frontend] TTS failed but continuing:", ttsError);
+      // Don't show error to user for TTS failures, just continue without audio
+    }
     
   stopSpeakingVisual();
     updatePrimaryButton("connected");
