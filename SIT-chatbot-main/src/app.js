@@ -550,6 +550,9 @@ async function sendVoiceMessage(text) {
 
   try {
     // Send to RAG backend for response
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+    
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: {
@@ -564,8 +567,11 @@ async function sendVoiceMessage(text) {
           }
         ],
         stream: false
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -585,13 +591,17 @@ async function sendVoiceMessage(text) {
       // Don't show error to user for TTS failures, just continue without audio
     }
     
-  stopSpeakingVisual();
+    stopSpeakingVisual();
     updatePrimaryButton("connected");
     
   } catch (error) {
     console.error("[Frontend] Error sending voice message:", error);
-    showError("Failed to process your voice message.");
-  stopSpeakingVisual();
+    if (error.name === 'AbortError') {
+      showError("Request timed out. The system is taking longer than expected to respond.");
+    } else {
+      showError("Failed to process your voice message.");
+    }
+    stopSpeakingVisual();
     updatePrimaryButton("connected");
   }
 }
@@ -652,6 +662,9 @@ async function sendTextMessage(text) {
 
   try {
     // Use RAG backend instead of ElevenLabs for text messages
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+    
     const response = await fetch('/api/chat', {
       method: 'POST',
       headers: {
@@ -666,8 +679,11 @@ async function sendTextMessage(text) {
           }
         ],
         stream: false
-      })
+      }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -682,8 +698,12 @@ async function sendTextMessage(text) {
     
   } catch (error) {
     console.error("[Frontend] Error sending text message:", error);
-    showError("Failed to send your message.");
-  stopSpeakingVisual();
+    if (error.name === 'AbortError') {
+      showError("Request timed out. The system is taking longer than expected to respond.");
+    } else {
+      showError("Failed to send your message.");
+    }
+    stopSpeakingVisual();
     updatePrimaryButton("connected");
   }
 }

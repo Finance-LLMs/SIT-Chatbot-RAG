@@ -9,8 +9,9 @@ const axios = require("axios");
 const { setGlobalDispatcher, Agent } = require('undici');
 
 setGlobalDispatcher(new Agent({
-  headersTimeout: 1_200_000, // wait up to 120s for headers
-  bodyTimeout: 0           // disable body timeout, or set a large value
+  headersTimeout: 3_600_000, // wait up to 3600s (1 hour) for headers
+  bodyTimeout: 0,            // disable body timeout
+  connectTimeout: 600_000    // 10 minutes connection timeout
 }));
 
 // Load environment variables from current backend directory
@@ -311,7 +312,7 @@ app.post('/api/chat', async (req, res) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(req.body),
-      timeout: 1200000 // Increased to 120 second timeout to match Undici config
+      timeout: 3600000 // Increased to 3600 second timeout (1 hour) to handle slow RAG responses
     });
     
     console.log('🔍 [CHAT API] RAG backend response status:', response.status);
