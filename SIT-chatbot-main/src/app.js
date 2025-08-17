@@ -252,23 +252,17 @@ function createMediaAvatar() {
 
 // Speaking state helpers (video only)
 function startSpeakingVisual() {
-  const avatarWrapper = document.getElementById("animatedAvatar");
-  if (avatarWrapper) {
-    avatarWrapper.classList.add("avatar-speaking");
-    const speakingIndicator = document.getElementById("speakingIndicator");
-    if (speakingIndicator) speakingIndicator.classList.remove("hidden");
-  }
-  switchToTTSSpeaking();
+  const speakingIndicator = document.getElementById("speakingIndicator");
+  speakingIndicator.classList.add("active");
+  const avatar = document.querySelector(".avatar-image");
+  if (avatar) avatar.classList.add("avatar-glow");
 }
 
 function stopSpeakingVisual() {
-  const avatarWrapper = document.getElementById("animatedAvatar");
-  if (avatarWrapper) {
-    avatarWrapper.classList.remove("avatar-speaking");
-    const speakingIndicator = document.getElementById("speakingIndicator");
-    if (speakingIndicator) speakingIndicator.classList.add("hidden");
-  }
-  switchToIdleState();
+  const speakingIndicator = document.getElementById("speakingIndicator");
+  speakingIndicator.classList.remove("active");
+  const avatar = document.querySelector(".avatar-image");
+  if (avatar) avatar.classList.remove("avatar-glow");
 }
 
 // Video switching functions
@@ -592,49 +586,27 @@ async function sendVoiceMessage(text) {
 }
 
 async function playTextToSpeech(text) {
+  startSpeakingVisual();
   try {
-    console.log("[Frontend] Converting text to speech:", text.substring(0, 50) + "...");
-    
-    const response = await fetch('/api/text-to-speech', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        text: text,
-        voice_id: "21m00Tcm4TlvDq8ikWAM" // Default ElevenLabs voice
-      })
+    const response = await fetch("/api/tts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
     });
-
     if (!response.ok) {
-      throw new Error(`TTS API returned status: ${response.status}`);
+      throw new Error("TTS request failed");
     }
-
     const audioBlob = await response.blob();
     const audioUrl = URL.createObjectURL(audioBlob);
     const audio = new Audio(audioUrl);
-    
-    // Link avatar: play video while TTS audio is playing; image otherwise
-    audio.onplay = () => startSpeakingVisual();
-    audio.onended = () => {
-      stopSpeakingVisual();
-      URL.revokeObjectURL(audioUrl);
-    };
-    audio.onerror = () => {
-      stopSpeakingVisual();
-      URL.revokeObjectURL(audioUrl);
-    };
-
-    try {
-      await audio.play();
-    } catch (playError) {
-      console.error("❌ Audio play failed:", playError);
-      stopSpeakingVisual();
-    }
-    
+    audio.play();
+    await new Promise((resolve) => {
+      audio.onended = resolve;
+    });
   } catch (error) {
-    console.error("[Frontend] Error with text-to-speech:", error);
-    // Don't show error to user for TTS failures, just continue without audio
+    console.error("Error during TTS playback:", error);
+  } finally {
+    stopSpeakingVisual();
   }
 }
 
