@@ -132,8 +132,9 @@ def detect_abbreviations(text):
 def resolve_abbreviations(abbrs):
     for abbr in abbrs:
         if abbr not in abbreviation_map:
-            user_input = input(f"❓ What does '{abbr}' stand for? ")
-            abbreviation_map[abbr] = user_input.strip()
+            # user_input = input(f"❓ What does '{abbr}' stand for? ")
+            abbreviation_map[abbr] = abbr
+            # abbreviation_map[abbr] = user_input.strip()
     with open(ABBR_CACHE_FILE, "w") as f:
         json.dump(abbreviation_map, f, indent=2)
     return abbreviation_map
