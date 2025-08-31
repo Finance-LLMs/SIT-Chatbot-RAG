@@ -588,7 +588,18 @@ async function sendVoiceMessage(text) {
     }
 
     const data = await response.json();
-    const botResponse = data.choices?.[0]?.message?.content || 'Sorry, I could not process your request.';
+    
+    // Handle both OpenAI format (from Node.js proxy) and direct format (from RAG backend)
+    let botResponse;
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+      // OpenAI format from Node.js proxy
+      botResponse = data.choices[0].message.content;
+    } else if (data.response) {
+      // Direct format from RAG backend
+      botResponse = data.response;
+    } else {
+      botResponse = 'Sorry, I could not process your request.';
+    }
     
     // Display the text response
     addMessageToChat(botResponse, "bot");
@@ -724,7 +735,18 @@ async function sendTextMessage(text) {
     }
 
     const data = await response.json();
-    const botResponse = data.choices?.[0]?.message?.content || 'Sorry, I could not process your request.';
+    
+    // Handle both OpenAI format (from Node.js proxy) and direct format (from RAG backend)
+    let botResponse;
+    if (data.choices && data.choices[0] && data.choices[0].message) {
+      // OpenAI format from Node.js proxy
+      botResponse = data.choices[0].message.content;
+    } else if (data.response) {
+      // Direct format from RAG backend
+      botResponse = data.response;
+    } else {
+      botResponse = 'Sorry, I could not process your request.';
+    }
     
     addMessageToChat(botResponse, "bot");
   stopSpeakingVisual();
