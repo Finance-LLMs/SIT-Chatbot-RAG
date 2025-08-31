@@ -561,7 +561,7 @@ async function sendVoiceMessage(text) {
   try {
     // Send to RAG backend for response
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+    const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
     
     const response = await fetch('/api/chat', {
       method: 'POST',
@@ -708,7 +708,7 @@ async function sendTextMessage(text) {
   try {
     // Use RAG backend instead of ElevenLabs for text messages
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 300000); // 5 minute timeout
+    const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
     
     const response = await fetch('/api/chat', {
       method: 'POST',
