@@ -337,6 +337,46 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// Direct /chat route (forwards to RAG backend)
+app.post('/chat', async (req, res) => {
+  console.log('🔍 [DIRECT CHAT] Received request to /chat');
+  console.log('🔍 [DIRECT CHAT] Request body:', JSON.stringify(req.body, null, 2));
+  
+  try {
+    console.log('🔍 [DIRECT CHAT] Forwarding to RAG backend at', RAG_BASE_URL + '/chat');
+    
+    // Forward directly to RAG backend /chat endpoint
+    const response = await fetch(`${RAG_BASE_URL}/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(req.body),
+      timeout: 600000 // 10 minute timeout
+    });
+    
+    console.log('🔍 [DIRECT CHAT] RAG backend response status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log('🔍 [DIRECT CHAT] RAG backend error response:', errorText);
+      throw new Error(`RAG backend returned status ${response.status}: ${errorText}`);
+    }
+    
+    const data = await response.json();
+    console.log('🔍 [DIRECT CHAT] RAG backend response:', JSON.stringify(data, null, 2));
+    
+    res.json(data);
+  } catch (error) {
+    console.error('❌ [DIRECT CHAT] Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to get response from RAG backend', 
+      details: error.message,
+      backend_url: RAG_BASE_URL
+    });
+  }
+});
+
 // Serve index.html for all other routes
 app.get("*", (req, res) => {
   console.log("Serving index.html for route:", req.url);
