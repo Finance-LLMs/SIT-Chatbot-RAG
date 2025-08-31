@@ -457,7 +457,7 @@ async function startSpeechToText() {
         formData.append("audio", audioBlob, "recording.wav");
 
         console.log("[Frontend] Sending audio to backend for speech-to-text");
-        const response = await fetch("/api/speech-to-text", {
+        const response = await fetch("http://127.0.0.1:3000/api/speech-to-text", {
           method: "POST",
           body: formData,
         });
@@ -563,7 +563,7 @@ async function sendVoiceMessage(text) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
     
-    const response = await fetch('/api/chat', {
+    const response = await fetch('http://127.0.0.1:8000/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -633,7 +633,7 @@ async function playTextToSpeech(text) {
   try {
     console.log("[Frontend] Converting text to speech:", text.substring(0, 50) + "...");
     
-    const response = await fetch('/api/text-to-speech', {
+    const response = await fetch('http://127.0.0.1:3000/api/text-to-speech', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -710,7 +710,7 @@ async function sendTextMessage(text) {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minute timeout
     
-    const response = await fetch('/api/chat', {
+    const response = await fetch('http://127.0.0.1:8000/chat', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
