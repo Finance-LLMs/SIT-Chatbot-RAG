@@ -346,9 +346,30 @@ async def chat_endpoint(request: dict):
     print(f"\n🔄 DIRECT CHAT REQUEST: {request}")
 
     try:
-        message = request.get("message", "")
+        # Support both message formats
+        message = ""
+        
+        # Check for direct message format
+        if "message" in request:
+            message = request.get("message", "")
+        
+        # Check for OpenAI format (messages array)
+        elif "messages" in request:
+            messages = request.get("messages", [])
+            for msg in messages:
+                if msg.get("role") == "user":
+                    message = msg.get("content", "")
+                    break
+        
+        # Check for simple content field
+        elif "content" in request:
+            message = request.get("content", "")
+            
         if not message.strip():
+            print(f"❌ ERROR: No valid message found in request: {request}")
             raise HTTPException(status_code=400, detail="Message cannot be empty")
+
+        print(f"✅ Extracted message: {message}")
 
         start_time = time.time()
         loop = asyncio.get_event_loop()
