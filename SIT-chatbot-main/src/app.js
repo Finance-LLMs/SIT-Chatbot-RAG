@@ -557,6 +557,9 @@ async function sendVoiceMessage(text) {
 
   updatePrimaryButton("processing");
   // Visual switches when TTS audio actually starts
+  
+  // Show loading message immediately
+  addMessageToChat("🔄 Processing your question... This may take up to 2 minutes.", "bot");
 
   try {
     // Send to RAG backend for response
@@ -704,6 +707,9 @@ async function sendTextMessage(text) {
   addMessageToChat(text, "user");
   updatePrimaryButton("processing");
   // Visual switches when TTS audio actually starts
+  
+  // Show loading message immediately
+  addMessageToChat("🔄 Processing your question... This may take up to 2 minutes.", "bot");
 
   try {
     // Use RAG backend instead of ElevenLabs for text messages
